@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app import crud
 from app.database import get_db
-from app.schemas import Message, MovieCreate, MovieRead
+from app.schemas import Message, MovieCreate, MovieRead, RatingRead
 from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
@@ -70,6 +70,7 @@ def delete_movie(movie_id: int, db: Session = Depends(get_db)) -> None:
     if not crud.delete_movie(db, movie_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
 
+
 @router.get(
     "/{movie_id}/rating",
     response_model=RatingRead,
@@ -79,7 +80,7 @@ def delete_movie(movie_id: int, db: Session = Depends(get_db)) -> None:
 )
 def get_rating(movie_id: int, db: Session = Depends(get_db)) -> RatingRead:
     """영화 평점 조회 엔드포인트.
- 
+
     Raises:
         HTTPException: 영화가 없으면 404.
     """
