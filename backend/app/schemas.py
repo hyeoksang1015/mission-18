@@ -46,7 +46,7 @@ class ReviewRead(ReviewCreate):
 
     id: int
     movie_id: int
-    sentiment_label: str = Field(description="positive / negative")
+    sentiment_label: str = Field(description="positive / neutral / negative")
     sentiment_score: float = Field(ge=0, le=5, description="긍정 확률 × 5")
     created_at: datetime
 
