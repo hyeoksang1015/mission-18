@@ -2,10 +2,10 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
 
 from app.database import Base, engine
-from app.routers import movies
+from app.routers import movies, reviews
+from fastapi import FastAPI
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(movies.router)
+app.include_router(reviews.router)
 
 
 @app.get("/health", summary="헬스체크", description="서버 기동 여부 확인용.")

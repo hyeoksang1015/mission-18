@@ -1,6 +1,7 @@
 """요청/응답 Pydantic 스키마."""
 
-from datetime import date
+from datetime import date, datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -27,6 +28,37 @@ class MovieRead(MovieCreate):
     avg_rating: float | None = Field(
         default=None, ge=0, le=5, description="리뷰 감성 점수 평균 (0~5)"
     )
+
+
+class ReviewCreate(BaseModel):
+    """리뷰 등록 요청. 영화 ID는 경로로 받는다."""
+
+    author: str = Field(min_length=1, max_length=50, examples=["홍길동"])
+    content: str = Field(
+        min_length=1, max_length=1000, examples=["배우들 연기가 정말 좋았어요."]
+    )
+
+
+class ReviewRead(ReviewCreate):
+    """리뷰 응답 (감성 분석 결과 포함)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    movie_id: int
+    sentiment_label: str = Field(description="positive / negative")
+    sentiment_score: float = Field(ge=0, le=5, description="긍정 확률 × 5")
+    created_at: datetime
+
+
+class RatingRead(BaseModel):
+    """영화 평점 응답."""
+
+    movie_id: int
+    avg_rating: float | None = Field(
+        ge=0, le=5, description="리뷰 감성 점수 평균 (0~5), 리뷰 없으면 null"
+    )
+    review_count: int
 
 
 class Message(BaseModel):
