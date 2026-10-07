@@ -69,3 +69,21 @@ def delete_movie(movie_id: int, db: Session = Depends(get_db)) -> None:
     """
     if not crud.delete_movie(db, movie_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
+
+@router.get(
+    "/{movie_id}/rating",
+    response_model=RatingRead,
+    responses=NOT_FOUND,
+    summary="영화 평점 조회",
+    description="영화 리뷰들의 감성 점수(긍정 확률×5) 평균과 리뷰 수를 반환합니다.",
+)
+def get_rating(movie_id: int, db: Session = Depends(get_db)) -> RatingRead:
+    """영화 평점 조회 엔드포인트.
+ 
+    Raises:
+        HTTPException: 영화가 없으면 404.
+    """
+    rating = crud.get_rating(db, movie_id)
+    if rating is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
+    return rating
