@@ -1,27 +1,104 @@
 """영화 리뷰 감성 분석 웹앱 (Streamlit 프론트엔드). 데이터는 전부 백엔드에서 관리."""
 
-from datetime import date
-
-import api_client
+import html
+import pandas as pd
 import streamlit as st
 
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
+
+import api_client
+
 COLS = 4  # 한 줄에 표시할 영화 카드 수
-LABELS = {"positive": "😊 긍정", "negative": "😞 부정"}
+KST = ZoneInfo("Asia/Seoul")
+# 감성 라벨 → (표시 이름, 색상). 무채색 톤에 맞춘 저채도 색.
+SENTIMENT = {
+    "positive": ("긍정", "#7FC8A0"),
+    "neutral": ("중립", "#A1A1AA"),
+    "negative": ("부정", "#E08A8A"),
+}
+COLOR_BY_NAME = {name: color for name, color in SENTIMENT.values()}
+CSS = """
+<style>
+.poster-wrap {position: relative; overflow: hidden; border-radius: 8px;
+              aspect-ratio: 2 / 3; background: #1A1A1A;}
+.poster {width: 100%; height: 100%; object-fit: cover; display: block;
+         transition: transform .25s ease;}
+.poster-wrap:hover .poster {transform: scale(1.04);}
+.rating {position: absolute; top: 8px; left: 8px; padding: 2px 9px;
+         border-radius: 999px; background: rgba(0, 0, 0, .7);
+         color: #FFFFFF; font-size: .8rem; font-weight: 600;}
+.m-title {font-size: 1.1rem; font-weight: 600; line-height: 1.3;
+          height: 2.6em; margin: .6rem 0 .2rem; color: #FFFFFF;
+          overflow: hidden; display: -webkit-box;
+          -webkit-line-clamp: 2; -webkit-box-orient: vertical;}
+.m-meta {font-size: .8rem; line-height: 1.4; height: 4.2em;
+         color: #A1A1AA; overflow: hidden;}
+.badge {display: inline-block; padding: 1px 9px; border-radius: 999px;
+        font-size: .78rem; font-weight: 600; border: 1px solid;}
+.stButton button {padding: .1rem .7rem; min-height: 0; font-size: .8rem;
+                  border-color: #2E2E2E;}
+</style>
+"""
 
 st.set_page_config(page_title="Movie Review", page_icon="🎬", layout="wide")
 
 
+def to_kst(iso: str) -> str:
+    """서버의 ISO 시각(UTC)을 KST 문자열로 변환한다.
+
+    Args:
+        iso: ISO 8601 문자열. tz 정보가 없으면(SQLite) UTC로 간주.
+
+    Returns:
+        str: 'YYYY-MM-DD HH:MM:SS' 형식의 KST 시각.
+    """
+    dt = datetime.fromisoformat(iso)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def sentiment_text(review: dict) -> str:
-    """감성 결과를 '라벨 (점수)' 문자열로 만든다.
+    """감성 결과를 '라벨 점수' 문자열로 만든다.
 
     Args:
         review: 백엔드 ReviewRead 응답.
 
     Returns:
-        str: 예) '😊 긍정 (4.53)'.
+        str: 예) '긍정 4.53'.
     """
-    label = LABELS.get(review["sentiment_label"], review["sentiment_label"])
-    return f"{label} ({review['sentiment_score']:.2f})"
+    label = review["sentiment_label"]
+    name = SENTIMENT.get(label, (label, ""))[0]
+    return f"{name} {review['sentiment_score']:.2f}"
+
+
+def sentiment_badge(review: dict) -> str:
+    """감성 결과를 색 배지 HTML로 만든다.
+
+    Args:
+        review: 백엔드 ReviewRead 응답.
+
+    Returns:
+        str: unsafe_allow_html 마크다운에 넣을 span 문자열.
+    """
+    color = SENTIMENT.get(review["sentiment_label"], ("", "#A1A1AA"))[1]
+    return (
+        f'<span class="badge" style="color:{color};border-color:{color}">'
+        f"{html.escape(sentiment_text(review))}</span>"
+    )
+
+
+def sentiment_cell_style(value: str) -> str:
+    """표의 감성 셀 글자색을 반환한다.
+
+    Args:
+        value: '긍정 4.53' 형태의 셀 값.
+
+    Returns:
+        str: CSS 선언 문자열.
+    """
+    return f"color: {COLOR_BY_NAME.get(value.split()[0], '#FFFFFF')}"
 
 
 def render_add_movie_form() -> None:
@@ -60,17 +137,27 @@ def render_add_movie_form() -> None:
 
 
 def render_card(movie: dict) -> None:
-    """영화 카드 1개(포스터, 제목, 평점, 정보, 삭제 버튼)를 그린다.
+    """영화 카드 1개(포스터+평점 배지, 제목, 정보, 삭제 버튼)를 그린다.
 
     Args:
         movie: 백엔드 MovieRead 응답.
     """
+    title = html.escape(movie["title"])
+    poster = html.escape(movie["poster_url"], quote=True)
+    meta = html.escape(
+        f"{movie['director']} · {movie['genre']} · {movie['release_date']}"
+    )
+    rating = movie["avg_rating"]
+    rating_text = f"★ {rating:.2f}" if rating is not None else "★ -"
     with st.container(border=True):
-        st.image(movie["poster_url"])
-        st.subheader(movie["title"])
-        rating = movie["avg_rating"]
-        st.markdown(f"**★ {rating:.2f} / 5**" if rating is not None else "★ 평점 없음")
-        st.caption(f"{movie['director']} · {movie['genre']} · {movie['release_date']}")
+        st.markdown(
+            '<div class="poster-wrap">'
+            f'<img class="poster" src="{poster}" alt="{title}">'
+            f'<span class="rating">{rating_text}</span></div>'
+            f'<div class="m-title" title="{title}">{title}</div>'
+            f'<div class="m-meta">{meta}</div>',
+            unsafe_allow_html=True,
+        )
         if st.button("삭제", key=f"del_movie_{movie['id']}"):
             try:
                 api_client.delete_movie(movie["id"])
@@ -90,7 +177,7 @@ def render_movies(movies: list[dict]) -> None:
         st.info("등록된 영화가 없습니다. 사이드바에서 추가하세요.")
         return
     for start in range(0, len(movies), COLS):
-        row = movies[start : start + COLS]
+        row = movies[start:start + COLS]
         for col, movie in zip(st.columns(COLS), row):
             with col:
                 render_card(movie)
@@ -136,18 +223,21 @@ def render_recent_reviews(titles: dict[int, str]) -> None:
     if not reviews:
         st.info("등록된 리뷰가 없습니다.")
         return
+    df = pd.DataFrame(
+        {
+            "영화 ID": r["movie_id"],
+            "영화": titles.get(r["movie_id"], "-"),
+            "등록일": to_kst(r["created_at"]),
+            "내용": r["content"],
+            "감성": sentiment_text(r),
+        }
+        for r in reviews
+    )
+    styler = df.style
+    # pandas 2.1+ 는 Styler.map, 이전 버전은 applymap
+    apply = getattr(styler, "map", None) or styler.applymap
     st.dataframe(
-        [
-            {
-                "영화 ID": r["movie_id"],
-                "영화": titles.get(r["movie_id"], "-"),
-                "등록일": r["created_at"][:19].replace("T", " "),
-                "내용": r["content"],
-                "감성": sentiment_text(r),
-            }
-            for r in reviews
-        ],
-        hide_index=True,
+        apply(sentiment_cell_style, subset=["감성"]), hide_index=True
     )
 
 
@@ -168,9 +258,13 @@ def render_movie_reviews(titles: dict[int, str]) -> None:
     for r in reviews:
         with st.container(border=True):
             body, action = st.columns([6, 1])
-            body.markdown(f"**{r['author']}** · {sentiment_text(r)}")
+            body.markdown(
+                f"**{html.escape(r['author'])}** &nbsp; "
+                f"{sentiment_badge(r)}",
+                unsafe_allow_html=True,
+            )
             body.write(r["content"])
-            body.caption(r["created_at"][:19].replace("T", " "))
+            body.caption(to_kst(r["created_at"]))
             if action.button("삭제", key=f"del_review_{r['id']}"):
                 api_client.delete_review(r["id"])
                 st.rerun()
@@ -181,6 +275,7 @@ def main() -> None:
     if flash := st.session_state.pop("flash", None):
         st.toast(flash)
 
+    st.markdown(CSS, unsafe_allow_html=True)
     render_add_movie_form()  # 목록보다 먼저 처리해야 같은 실행에서 바로 반영됨
     st.title("🎬 영화 리뷰 감성 분석")
     try:
