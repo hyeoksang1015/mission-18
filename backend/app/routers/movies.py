@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 
 from app import crud
 from app.database import get_db
-from app.schemas import Message, MovieCreate, MovieRead, RatingRead
+from app.schemas import (
+    Message,
+    MovieCreate,
+    MovieRead,
+    MovieUpdate,
+    RatingRead,
+)
 from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
@@ -49,6 +55,27 @@ def get_movie(movie_id: int, db: Session = Depends(get_db)) -> MovieRead:
         HTTPException: 영화가 없으면 404.
     """
     movie = crud.get_movie(db, movie_id)
+    if movie is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
+    return movie
+
+
+@router.patch(
+    "/{movie_id}",
+    response_model=MovieRead,
+    responses=NOT_FOUND,
+    summary="특정 영화 수정",
+    description="보낸 필드만 수정합니다(부분 수정). 예: 포스터 URL만 변경.",
+)
+def update_movie(
+    movie_id: int, data: MovieUpdate, db: Session = Depends(get_db)
+) -> MovieRead:
+    """특정 영화 수정 엔드포인트.
+
+    Raises:
+        HTTPException: 영화가 없으면 404.
+    """
+    movie = crud.update_movie(db, movie_id, data)
     if movie is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
     return movie

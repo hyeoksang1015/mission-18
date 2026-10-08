@@ -19,6 +19,21 @@ class MovieCreate(BaseModel):
     )
 
 
+class MovieUpdate(BaseModel):
+    """영화 수정 요청. 보낸 필드만 수정된다 (부분 수정)."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    release_date: date | None = None
+    director: str | None = Field(default=None, min_length=1, max_length=100)
+    genre: str | None = Field(default=None, min_length=1, max_length=50)
+    poster_url: str | None = Field(
+        default=None,
+        max_length=500,
+        pattern=r"^https?://",
+        examples=["https://example.com/new-poster.jpg"],
+    )
+
+
 class MovieRead(MovieCreate):
     """영화 응답. avg_rating은 리뷰가 없으면 null."""
 

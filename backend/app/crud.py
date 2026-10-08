@@ -5,7 +5,13 @@ from sqlalchemy.orm import Session
 
 from app import sentiment
 from app.models import Movie, Review
-from app.schemas import MovieCreate, MovieRead, RatingRead, ReviewCreate
+from app.schemas import (
+    MovieCreate,
+    MovieRead,
+    MovieUpdate,
+    RatingRead,
+    ReviewCreate,
+)
 
 
 def _movie_with_rating() -> Select:
@@ -65,6 +71,28 @@ def get_movie(db: Session, movie_id: int) -> MovieRead | None:
     """
     row = db.execute(_movie_with_rating().where(Movie.id == movie_id)).first()
     return _to_read(*row) if row else None
+
+
+def update_movie(
+    db: Session, movie_id: int, data: MovieUpdate
+) -> MovieRead | None:
+    """영화를 부분 수정한다. 요청에 포함된(null이 아닌) 필드만 반영한다.
+
+    Args:
+        db: DB 세션.
+        movie_id: 영화 ID.
+        data: 수정할 필드.
+
+    Returns:
+        MovieRead | None: 수정된 영화(평균 평점 포함). 없으면 None.
+    """
+    movie = db.get(Movie, movie_id)
+    if movie is None:
+        return None
+    for key, value in data.model_dump(exclude_none=True).items():
+        setattr(movie, key, value)
+    db.commit()
+    return get_movie(db, movie_id)
 
 
 def delete_movie(db: Session, movie_id: int) -> bool:
